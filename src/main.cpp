@@ -1,7 +1,16 @@
+#include "SDL_error.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_image.h>
 
+#include <entt/entt.hpp>
 #include <iostream>
+
+struct MyException : public std::exception {
+    std::string s;
+    MyException(std::string ss) : s(ss) {}
+    ~MyException() throw() {}
+    const char *what() const throw() { return s.c_str(); }
+};
 
 int main() {
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -23,9 +32,13 @@ int main() {
     // SDL_Surface *screenSurface = SDL_GetWindowSurface(window);
     SDL_Renderer *renderer = SDL_CreateRenderer(
         window, NULL, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (renderer == NULL) {
-        std::cout << SDL_GetError() << std::endl;
-    }
+    // if (renderer == NULL) {
+    //     std::cout << SDL_GetError() << std::endl;
+    //     std::cout << "trying nonaccelerated backend" << std::endl;
+    //
+    //     renderer = SDL_CreateRenderer(window, NULL,
+    //     SDL_RENDERER_PRESENTVSYNC);
+    // }
     SDL_SetRenderLogicalPresentation(renderer, 640, 480,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX,
                                      SDL_SCALEMODE_LINEAR);
@@ -36,27 +49,28 @@ int main() {
 
     SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
-    SDL_Surface *putinSurface = IMG_Load("assets/putin.png");
-    if (putinSurface == NULL) {
-        std::cout << SDL_GetError() << std::endl;
-    }
-
-    SDL_SetWindowIcon(window, putinSurface);
-
-    SDL_Texture *putinTexture =
-        SDL_CreateTextureFromSurface(renderer, putinSurface);
-    if (putinTexture == NULL) {
-        std::cout << SDL_GetError() << std::endl;
-    }
+    entt::registry registry;
+    auto putin = registry.create();
+    registry.emplace<SDL_Surface *>(putin, IMG_Load("assets/putin.png"));
+    if (!registry.get<SDL_Surface *>(putin))
+        throw MyException(SDL_GetError());
+    registry.emplace<SDL_Texture *>(
+        putin, SDL_CreateTextureFromSurface(
+                   renderer, registry.get<SDL_Surface *>(putin)));
+    if (!registry.get<SDL_Texture *>(putin))
+        throw MyException(SDL_GetError());
 
     bool running = true;
 
     SDL_FRect r;
     SDL_FRect t;
+    t.x = 0;
+    t.y = 0;
+
     r.x = 50;
     r.y = 50;
-    r.w = putinSurface->w;
-    r.h = putinSurface->h;
+    r.w = registry.get<SDL_Surface *>(putin)->w;
+    r.h = registry.get<SDL_Surface *>(putin)->h;
 
     Uint64 oldTime = SDL_GetTicks();
     SDL_bool isFullscreen = SDL_FALSE;
@@ -100,7 +114,14 @@ int main() {
         SDL_RenderClear(renderer);
         SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
-        SDL_RenderTexture(renderer, putinTexture, NULL, &r);
+        auto txt = registry.get<SDL_Texture *>(putin);
+        if (txt == NULL)
+            throw MyException(SDL_GetError());
+
+        // std::cout << r.x << " " << r.y << " " << r.w << " " << r.h <<
+        // std::endl;
+
+        SDL_RenderTexture(renderer, txt, NULL, &r);
 
         SDL_RenderPresent(renderer);
 
@@ -111,7 +132,8 @@ int main() {
 
     SDL_DestroyRenderer(renderer);
     // SDL_DestroySurface(screenSurface);
-    SDL_DestroySurface(putinSurface);
+    SDL_DestroySurface(registry.get<SDL_Surface *>(putin));
+    SDL_DestroyTexture(registry.get<SDL_Texture *>(putin));
     SDL_DestroyWindow(window);
     SDL_Quit();
 
