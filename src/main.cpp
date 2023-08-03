@@ -5,40 +5,30 @@
 #include <entt/entt.hpp>
 #include <iostream>
 
-struct MyException : public std::exception {
-    std::string s;
-    MyException(std::string ss) : s(ss) {}
-    ~MyException() throw() {}
-    const char *what() const throw() { return s.c_str(); }
-};
-
 int main() {
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-        SDL_Log("HI");
-
-        return 1;
-    }
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+        throw std::runtime_error(SDL_GetError());
 
     SDL_Window *window = SDL_CreateWindow("sdl3game", 640, 480, 0);
-    if (!window) {
-        return 1;
-    }
+    if (!window)
+        throw std::runtime_error(SDL_GetError());
 
     int imgFlags = IMG_INIT_PNG;
-    if (!(IMG_Init(imgFlags) & imgFlags)) {
-        return 1;
-    }
+    if (!(IMG_Init(imgFlags) & imgFlags))
+        throw std::runtime_error(IMG_GetError());
 
     // SDL_Surface *screenSurface = SDL_GetWindowSurface(window);
     SDL_Renderer *renderer = SDL_CreateRenderer(
         window, NULL, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    // if (renderer == NULL) {
-    //     std::cout << SDL_GetError() << std::endl;
-    //     std::cout << "trying nonaccelerated backend" << std::endl;
-    //
-    //     renderer = SDL_CreateRenderer(window, NULL,
-    //     SDL_RENDERER_PRESENTVSYNC);
-    // }
+    if (renderer == NULL) {
+        std::cout << SDL_GetError() << std::endl;
+        std::cout << "trying nonaccelerated backend" << std::endl;
+
+        renderer = SDL_CreateRenderer(window, NULL, SDL_RENDERER_PRESENTVSYNC);
+    }
+    if (!SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1"))
+        std::cout << "failed to set VSYNC hint due to error: " << SDL_GetError()
+                  << std::endl;
     SDL_SetRenderLogicalPresentation(renderer, 640, 480,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX,
                                      SDL_SCALEMODE_LINEAR);
@@ -53,12 +43,12 @@ int main() {
     auto putin = registry.create();
     registry.emplace<SDL_Surface *>(putin, IMG_Load("assets/putin.png"));
     if (!registry.get<SDL_Surface *>(putin))
-        throw MyException(SDL_GetError());
+        throw std::runtime_error(SDL_GetError());
     registry.emplace<SDL_Texture *>(
         putin, SDL_CreateTextureFromSurface(
                    renderer, registry.get<SDL_Surface *>(putin)));
     if (!registry.get<SDL_Texture *>(putin))
-        throw MyException(SDL_GetError());
+        throw std::runtime_error(SDL_GetError());
 
     bool running = true;
 
@@ -115,15 +105,11 @@ int main() {
         SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
         auto txt = registry.get<SDL_Texture *>(putin);
-        if (txt == NULL)
-            throw MyException(SDL_GetError());
-
-        // std::cout << r.x << " " << r.y << " " << r.w << " " << r.h <<
-        // std::endl;
-
         SDL_RenderTexture(renderer, txt, NULL, &r);
 
         SDL_RenderPresent(renderer);
+
+        // std::cout << delta << std::endl;
 
         oldTime = newTime;
         t.x = 0;
