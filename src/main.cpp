@@ -1,7 +1,7 @@
-#include "SDL_error.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_image.h>
 
+#include <cstring>
 #include <entt/entt.hpp>
 #include <iostream>
 
@@ -49,18 +49,13 @@ int main() {
                    renderer, registry.get<SDL_Surface *>(putin)));
     if (!registry.get<SDL_Texture *>(putin))
         throw std::runtime_error(SDL_GetError());
+    registry.emplace<SDL_FRect>(
+        putin, SDL_FRect{.x = 50,
+                         .y = 50,
+                         .w = (float)registry.get<SDL_Surface *>(putin)->w,
+                         .h = (float)registry.get<SDL_Surface *>(putin)->h});
 
     bool running = true;
-
-    SDL_FRect r;
-    SDL_FRect t;
-    t.x = 0;
-    t.y = 0;
-
-    r.x = 50;
-    r.y = 50;
-    r.w = registry.get<SDL_Surface *>(putin)->w;
-    r.h = registry.get<SDL_Surface *>(putin)->h;
 
     Uint64 oldTime = SDL_GetTicks();
     SDL_bool isFullscreen = SDL_FALSE;
@@ -87,6 +82,10 @@ int main() {
             }
         }
 
+        auto r = registry.get<SDL_FRect>(putin);
+        SDL_FRect t;
+        std::memset(&t, 0, sizeof(t));
+
         const Uint8 *keyboardState = SDL_GetKeyboardState(NULL);
         if (keyboardState[SDL_SCANCODE_UP])
             t.y = -0.25 * delta;
@@ -109,11 +108,9 @@ int main() {
 
         SDL_RenderPresent(renderer);
 
-        // std::cout << delta << std::endl;
+        registry.replace<SDL_FRect>(putin, r);
 
         oldTime = newTime;
-        t.x = 0;
-        t.y = 0;
     }
 
     SDL_DestroyRenderer(renderer);
